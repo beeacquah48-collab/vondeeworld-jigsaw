@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>VondeeWorld Jigsaw — 3×5 jigsaw pieces (2 attempts, 60s, snap)</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand-pink: #ff4fa2;
+    --bg: #fff4f9;
+    --paper: #ffffff;
+    --ink: #0b0b0b;
+    --muted-ink: rgba(11,11,11,0.65);
+    --edge-stroke: rgba(15,15,15,0.55); /* slightly transparent dark gray */
+    --gap: 6px;
+    --max-board-width: 920px;
+  }
+  *{box-sizing:border-box}
+  body{font-family:'Poppins',system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:18px; background:linear-gradient(180deg,var(--bg),#fff); color:var(--ink)}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--brand-pink),#ff9acb);display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+  .title{font-size:18px;font-weight:700}
+  .slogan{font-size:13px;color:rgba(11,11,11,0.6);font-style:italic}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .panel{background:var(--paper);padding:10px;border-radius:12px;box-shadow:0 8px 22px rgba(11,11,11,0.06)}
+  .btn{background:white;border:1px solid rgba(11,11,11,0.06);padding:8px 10px;border-radius:8px;cursor:pointer}
+  .btn:disabled{opacity:0.5;cursor:not-allowed}
+  .badge{background:var(--paper);padding:6px 10px;border-radius:999px;font-weight:600}
+  .main{display:flex;gap:16px;flex-wrap:wrap}
+  .left{flex:1 1 640px;min-width:280px}
+  .right{width:320px;min-width:240px}
+  .board-wrap{width:100%;max-width:var(--max-board-width);margin:auto}
+  .board{width:100%;background:var(--paper);border-radius:12px;overflow:hidden;position:relative;box-shadow:0 12px 30px rgba(11,11,11,0.06);display:grid;align-items:stretch;justify-items:stretch}
+  .board{aspect-ratio:16/9}
+  @media (max-width:640px){ .board{aspect-ratio:9/16} }
+  .slot{position:relative;overflow:visible}
+  .piece-svg{position:absolute;top:0;left:0;touch-action:none;cursor:grab;will-change:transform, left, top}
+  .pool{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start;margin-top:8px}
+  .small{font-size:13px;color:var(--muted-ink)}
+  .overlayHint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:80;background:rgba(11,11,11,0.45)}
+  .fullImage{max-width:98%;max-height:98%;object-fit:contain;border-radius:8px;box-shadow:0 12px 36px rgba(11,11,11,0.35)}
+  footer{margin-top:14px;font-size:13px;color:var(--muted-ink)}
+  .minimal header .logo{display:none}
+  .minimal header .title{font-weight:600}
+
+  /* Snap animation (realistic bounce) */
+  .snap{
+    animation: snap-bounce 360ms cubic-bezier(.2,.9,.2,1);
+    transform-origin: center center;
+  }
+  @keyframes snap-bounce{
+    0% { transform: scale(0.9) translateY(-8px); }
+    60% { transform: scale(1.07) translateY(4px); }
+    100% { transform: scale(1) translateY(0); }
+  }
+
+  /* minor visual while dragging */
+  .dragging { opacity:0.95; transform:scale(1.02); transition:transform .08s linear; }
+</style>
+</head>
+<body>
+
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px">
+  <div style="display:flex;gap:10px;align-items:center">
+    <label class="small">Variant:</label>
+    <select id="variantSel" class="btn">
+      <option value="withHeader">VondeeWorld header</option>
+      <option value="minimal">Minimal</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="badge" id="attemptsBadge">Attempts: 0 / 2</div>
+    <div class="badge" id="timerBadge">Time: 60s</div>
+  </div>
+</div>
+
+<div id="appRoot" class="withHeader">
+  <header>
+    <div class="brand">
+      <div class="logo">VW</div>
+      <div>
+        <div class="title">VondeeWorld</div>
+        <div class="slogan">confidence in elegance</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="startBtn" class="btn">Start</button>
+      <button id="hintBtn" class="btn">Hint (2s)</button>
+      <button id="retryBtn" class="btn">Retry</button>
+    </div>
+  </header>
+
+  <div class="controls panel" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <label class="small">Image file: <input id="imgFile" type="file" accept="image/*"></label>
+    <label class="small">or URL: <input id="imgUrl" type="url" placeholder="https://..." style="width:260px"></label>
+    <label class="small">Grid: <select id="rows" class="btn"><option selected>3</option></select> x <select id="cols" class="btn"><option selected>5</option></select></label>
+    <button id="loadBtn" class="btn">Load</button>
+    <label class="small">Theme: <select id="themeSel" class="btn"><option value="pink">Pink/White/Black</option></select></label>
+  </div>
+
+  <div class="main">
+    <div class="left">
+      <div class="board-wrap panel">
+        <div id="board" class="board"></div>
+      </div>
+    </div>
+
+    <div class="right panel">
+      <div class="small" style="font-weight:700;margin-bottom:8px">Pieces pool (drag pieces onto board)</div>
+      <div id="pool" class="pool"></div>
+      <div style="height:10px"></div>
+      <div class="small" id="message">Load an image and press Start.</div>
+    </div>
+  </div>
+</div>
+
+<footer>True jigsaw shapes with outlined edges and silent bounce snap. Save as <code>vondeeworld-jigsaw-jigsawshape.html</code> and open in a browser.</footer>
+
+<script>
+/* Responsive 3x5 Jigsaw with SVG clipPaths (classic tabs+blanks) + snap bounce
+   - 3 rows x 5 cols
+   - 2 attempts total
+   - 60s per attempt
+   - Slightly transparent dark-gray outlines
+   - Responsive: pieces recompute on resize
+   - Silent bounce snap when a correct piece is placed
+*/
+
+(function(){
+  // config
+  const ROWS = 3, COLS = 5, TOTAL = ROWS*COLS;
+  const MAX_ATTEMPTS = 2, ATTEMPT_TIME = 60;
+
+  // DOM
+  const appRoot = document.getElementById('appRoot');
+  const variantSel = document.getElementById('variantSel');
+  const startBtn = document.getElementById('startBtn');
+  const hintBtn = document.getElementById('hintBtn');
+  const retryBtn = document.getElementById('retryBtn');
+  const board = document.getElementById('board');
+  const pool = document.getElementById('pool');
+  const imgFile = document.getElementById('imgFile');
+  const imgUrl = document.getElementById('imgUrl');
+  const loadBtn = document.getElementById('loadBtn');
+  const message = document.getElementById('message');
+  const attemptsBadge = document.getElementById('attemptsBadge');
+  const timerBadge = document.getElementById('timerBadge');
+
+  // state
+  let imgSrc = '';
+  let attempt = 0;
+  let timeLeft = ATTEMPT_TIME;
+  let timerId = null;
+  let mapping = []; // randomized order of pieces
+  let edgeMap = []; // for each piece: {top: -1|0|1, right: -1|0|1, bottom, left}
+  let placedMap = {}; // slotIndex -> pieceId
+  let pieceElements = {}; // pieceId -> svgElement
+  let solved = false;
+
+  // helpers
+  function show(msg){ message.textContent = msg; }
+  function updateBadges(){ attemptsBadge.textContent = `Attempts: ${attempt} / ${MAX_ATTEMPTS}`; timerBadge.textContent = `Time: ${timeLeft}s`; }
+
+  variantSel.addEventListener('change', ()=> applyVariant(variantSel.value));
+  function applyVariant(v){ if(v==='minimal'){ appRoot.classList.add('minimal'); appRoot.classList.remove('withHeader'); } else { appRoot.classList.remove('minimal'); appRoot.classList.add('withHeader'); } }
+
+  // build complementary edge map for the grid
+  function generateEdgeMap(){
+    edgeMap = new Array(TOTAL).fill(null).map(()=>({top:0,right:0,bottom:0,left:0}));
+    for(let r=0;r<ROWS;r++){
+      for(let c=0;c<COLS-1;c++){
+        const idx = r*COLS + c;
+        const rightTab = Math.random() > 0.5 ? 1 : -1;
+        edgeMap[idx].right = rightTab;
+        edgeMap[idx+1].left = -rightTab;
+      }
+    }
+    for(let r=0;r<ROWS-1;r++){
+      for(let c=0;c<COLS;c++){
+        const idx = r*COLS + c;
+        const bottomTab = Math.random() > 0.5 ? 1 : -1;
+        edgeMap[idx].bottom = bottomTab;
+        edgeMap[idx + COLS].top = -bottomTab;
+      }
+    }
+  }
+
+  function getBoardGeometry(){
+    const rect = board.getBoundingClientRect();
+    const boardW = rect.width, boardH = rect.height;
+    const pieceW = boardW / COLS, pieceH = boardH / ROWS;
+    return {boardW,boardH,pieceW,pieceH};
+  }
+
+  // SVG path generator for jigsaw piece
+  function makePiecePath(w,h,edges, tabSizeFactor=0.22, tabDepthFactor=0.14){
+    const ts = Math.min(w,h) * tabSizeFactor;
+    const td = Math.min(w,h) * tabDepthFactor;
+    function horizEdge(x0,x1,y,dir){ if(dir===0) return `L ${x1} ${y} `;
+      const mid = (x0+x1)/2; const left = mid - ts/2, right = mid+ts/2; const depth = dir * td; return `L ${left} ${y} C ${left + ts*0.08} ${y} ${mid - ts*0.02} ${y + depth} ${mid} ${y + depth} C ${mid + ts*0.02} ${y + depth} ${right - ts*0.08} ${y} ${right} ${y} L ${x1} ${y} `; }
+    function vertEdge(y0,y1,x,dir){ if(dir===0) return `L ${x} ${y1} `; const mid = (y0+y1)/2; const top = mid - ts/2, bottom = mid + ts/2; const depth = dir * td; return `L ${x} ${top} C ${x} ${top + ts*0.08} ${x + depth} ${mid - ts*0.02} ${x + depth} ${mid} C ${x + depth} ${mid + ts*0.02} ${x} ${bottom - ts*0.08} ${x} ${bottom} L ${x} ${y1} `; }
+    function horizEdgeRightToLeft(x0,x1,y,dir){ if(dir===0) return `L ${x1} ${y} `; const mid = (x0+x1)/2; const left = mid - ts/2, right = mid + ts/2; const depth = -dir * td; return `L ${right} ${y} C ${right - ts*0.08} ${y} ${mid + ts*0.02} ${y + depth} ${mid} ${y + depth} C ${mid - ts*0.02} ${y + depth} ${left + ts*0.08} ${y} ${left} ${y} L ${x1} ${y} `; }
+    function vertEdgeBottomToTop(y0,y1,x,dir){ if(dir===0) return `L ${x} ${y1} `; const mid = (y0+y1)/2; const top = mid - ts/2, bottom = mid + ts/2; const depth = -dir * td; return `L ${x} ${bottom} C ${x} ${bottom - ts*0.08} ${x + depth} ${mid + ts*0.02} ${x + depth} ${mid} C ${x + depth} ${mid - ts*0.02} ${x} ${top + ts*0.08} ${x} ${top} L ${x} ${y1} `; }
+    let d = `M 0 0 `;
+    d += horizEdge(0,w,0, edges.top);
+    d += vertEdge(0,h,w, edges.right);
+    d += horizEdgeRightToLeft(w,0,h, edges.bottom);
+    d += vertEdgeBottomToTop(h,0,0, edges.left);
+    d += 'Z';
+    return d;
+  }
+
+  // build svg piece
+  function buildPieceSVG(r,c,boardW,boardH,pieceW,pieceH,edges,pieceId){
+    const svgns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgns,'svg');
+    svg.setAttribute('width', pieceW); svg.setAttribute('height', pieceH); svg.setAttribute('viewBox', `0 0 ${pieceW} ${pieceH}`);
+    svg.classList.add('piece-svg'); svg.dataset.pieceId = pieceId; svg.style.width = pieceW + 'px'; svg.style.height = pieceH + 'px'; svg.style.position = 'absolute';
+    const clipId = `clip-${pieceId}`;
+    const defs = document.createElementNS(svgns,'defs');
+    const clipPath = document.createElementNS(svgns,'clipPath'); clipPath.setAttribute('id', clipId);
+    const path = document.createElementNS(svgns,'path'); const d = makePiecePath(pieceW, pieceH, edges);
+    path.setAttribute('d', d); path.setAttribute('fill','white'); path.setAttribute('stroke','none'); clipPath.appendChild(path); defs.appendChild(clipPath); svg.appendChild(defs);
+    const imgEl = document.createElementNS(svgns,'image'); const xOff = -c * pieceW; const yOff = -r * pieceH;
+    imgEl.setAttributeNS(null,'href', imgSrc); imgEl.setAttribute('x', xOff); imgEl.setAttribute('y', yOff); imgEl.setAttribute('width', boardW); imgEl.setAttribute('height', boardH); imgEl.setAttribute('clip-path', `url(#${clipId})`);
+    svg.appendChild(imgEl);
+    const outline = document.createElementNS(svgns,'path'); outline.setAttribute('d', d); outline.setAttribute('fill','none'); outline.setAttribute('stroke', 'rgba(15,15,15,0.55)'); outline.setAttribute('stroke-width', Math.max(1, Math.min(pieceW, pieceH) * 0.02)); outline.setAttribute('vector-effect','non-scaling-stroke'); svg.appendChild(outline);
+    return svg;
+  }
+
+  function createMapping(){ mapping = [...Array(TOTAL).keys()]; for(let i=mapping.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [mapping[i],mapping[j]]=[mapping[j],mapping[i]]; } }
+
+  function buildBoardAndPieces(){
+    board.innerHTML = ''; pool.innerHTML = ''; placedMap = {}; pieceElements = {};
+    const geom = getBoardGeometry(); const {boardW, boardH, pieceW, pieceH} = geom;
+    board.style.position = 'relative'; board.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`; board.style.gridTemplateRows = `repeat(${ROWS}, 1fr)`;
+    for(let r=0;r<ROWS;r++){ for(let c=0;c<COLS;c++){ const slot = document.createElement('div'); slot.className='slot'; slot.style.width='100%'; slot.style.height='100%'; slot.dataset.index = r*COLS + c; const left = c * pieceW; const top = r * pieceH; slot.dataset.left = left; slot.dataset.top = top; slot.addEventListener('dragover', e=>e.preventDefault()); slot.addEventListener('drop', onDropSlot); board.appendChild(slot); } }
+    createMapping();
+    for(let i=0;i<TOTAL;i++){
+      const visualIndex = mapping[i]; const r = Math.floor(visualIndex / COLS); const c = visualIndex % COLS; const pieceId = `piece-${visualIndex}-${Date.now()}-${i}`;
+      const svg = buildPieceSVG(r,c,boardW,boardH,pieceW,pieceH, edgeMap[visualIndex], pieceId);
+      const wrap = document.createElement('div'); wrap.style.width = Math.max(48, Math.min(120, pieceW*0.9)) + 'px'; wrap.style.height = Math.max(36, Math.min(90, pieceH*0.9)) + 'px'; wrap.style.display='flex'; wrap.style.alignItems='center'; wrap.style.justifyContent='center'; wrap.style.borderRadius='8px'; wrap.style.background='linear-gradient(180deg,#fff,#fff)'; wrap.style.padding='6px'; wrap.style.boxShadow='0 6px 18px rgba(11,11,11,0.04)'; wrap.appendChild(svg);
+      svg.dataset.origIndex = visualIndex; svg.dataset.pieceId = pieceId; pieceElements[pieceId] = svg; svg.addEventListener('dragstart', onDragStart); svg.addEventListener('dragend', onDragEnd); pool.appendChild(wrap);
+    }
+  }
+
+  function onDragStart(e){ const svg = e.currentTarget; try{ const xml = new XMLSerializer().serializeToString(svg); const svg64 = btoa(unescape(encodeURIComponent(xml))); const imgSrcData = 'data:image/svg+xml;base64,' + svg64; const dragImg = new Image(); dragImg.src = imgSrcData; document.body.appendChild(dragImg); e.dataTransfer.setDragImage(dragImg, parseInt(svg.getAttribute('width')||svg.style.width||50)/2, parseInt(svg.getAttribute('height')||svg.style.height||50)/2); setTimeout(()=> document.body.removeChild(dragImg), 0); }catch(err){} svg.classList.add('dragging'); }
+  function onDragEnd(e){ const svg = e.currentTarget; svg.classList.remove('dragging'); }
+
+  function onDropSlot(e){ e.preventDefault(); const pieceId = e.dataTransfer.getData('text/plain'); if(!pieceId) return; const slot = e.currentTarget; const slotIdx = parseInt(slot.dataset.index,10); if(placedMap[slotIdx]){ const oldPieceId = placedMap[slotIdx]; const oldSvg = pieceElements[oldPieceId]; if(oldSvg){ pool.appendChild(oldSvg.parentElement); oldSvg.style.position=''; oldSvg.style.left=''; oldSvg.style.top=''; } delete placedMap[slotIdx]; }
+    const svg = pieceElements[pieceId]; if(!svg) return; const left = parseFloat(slot.dataset.left), top = parseFloat(slot.dataset.top); svg.style.position='absolute'; svg.style.left = left + 'px'; svg.style.top = top + 'px'; svg.style.width = (getBoardGeometry().pieceW) + 'px'; svg.style.height = (getBoardGeometry().pieceH) + 'px'; board.appendChild(svg); placedMap[slotIdx] = pieceId; svg.setAttribute('draggable','false');
+    // if piece is correct for this slot, animate snap (silent bounce)
+    const orig = parseInt(svg.dataset.origIndex,10);
+    if(orig === slotIdx){ svg.classList.add('snap'); setTimeout(()=> svg.classList.remove('snap'), 420); }
+    checkSolved(); }
+
+  function checkSolved(){ for(let i=0;i<TOTAL;i++){ if(!placedMap[i]) return false; const pid = placedMap[i]; const svg = pieceElements[pid]; if(!svg) return false; const orig = parseInt(svg.dataset.origIndex,10); if(orig !== i) return false; } clearInterval(timerId); show(`Solved on attempt ${attempt}! ${timeLeft}s remaining.`); hintBtn.disabled = true; retryBtn.disabled = true; startBtn.disabled = false; Object.values(pieceElements).forEach(s=> s.setAttribute('draggable','false')); return true; }
+
+  function clearPlaced(){ Object.values(pieceElements).forEach(svg=>{ if(svg.parentElement === board){ const wrap = document.createElement('div'); wrap.style.width = Math.max(48, Math.min(120, getBoardGeometry().pieceW*0.9)) + 'px'; wrap.style.height = Math.max(36, Math.min(90, getBoardGeometry().pieceH*0.9)) + 'px'; wrap.style.display = 'flex'; wrap.style.alignItems='center'; wrap.style.justifyContent='center'; wrap.style.padding='6px'; wrap.style.borderRadius='8px'; wrap.appendChild(svg); pool.appendChild(wrap); svg.style.position=''; svg.style.left=''; svg.style.top=''; svg.style.width=''; svg.style.height=''; svg.setAttribute('draggable','true'); } }); placedMap = {}; }
+
+  function startTimer(){ clearInterval(timerId); timeLeft = ATTEMPT_TIME; updateBadges(); timerId = setInterval(()=>{ timeLeft--; updateBadges(); if(timeLeft<=0){ clearInterval(timerId); onTimeout(); } },1000); }
+  function onTimeout(){ show('Time up for this attempt.'); attempt++; updateBadges(); if(attempt < MAX_ATTEMPTS){ show(`Attempt ${attempt} ended. Preparing attempt ${attempt+1}...`); setTimeout(()=> prepareNewAttempt(), 900); } else { lockGame(); } }
+  function prepareNewAttempt(){ clearPlaced(); createMapping(); buildBoardAndPieces(); startTimer(); hintBtn.disabled = attempt >= MAX_ATTEMPTS; retryBtn.disabled = attempt >= MAX_ATTEMPTS; show(`Attempt ${attempt+1} started.`); }
+  function startGame(){ if(!imgSrc){ alert('Load an image first (file or URL).'); return; } generateEdgeMap(); attempt = 1; updateBadges(); createMapping(); buildBoardAndPieces(); startTimer(); hintBtn.disabled = false; retryBtn.disabled = false; show('Game started. Good luck!'); startBtn.disabled = true; }
+  function retryAttempt(){ if(attempt >= MAX_ATTEMPTS) return; clearInterval(timerId); clearPlaced(); createMapping(); buildBoardAndPieces(); timeLeft = ATTEMPT_TIME; updateBadges(); startTimer(); show(`Attempt ${attempt} restarted.`); }
+  function showHint(){ if(attempt >= MAX_ATTEMPTS) return; const overlay = document.createElement('div'); overlay.className = 'overlayHint'; const img = document.createElement('img'); img.className='fullImage'; img.src = imgSrc; overlay.appendChild(img); document.body.appendChild(overlay); setTimeout(()=> overlay.remove(),2000); }
+  function lockGame(){ clearInterval(timerId); show('No attempts left — game locked.'); hintBtn.disabled = true; retryBtn.disabled = true; startBtn.disabled = false; Object.values(pieceElements).forEach(s=> s.setAttribute('draggable','false')); }
+
+  loadBtn.addEventListener('click', ()=>{ if(imgFile.files && imgFile.files[0]){ const r=new FileReader(); r.onload = e => { imgSrc = e.target.result; show('Loaded image file. Press Start.'); }; r.readAsDataURL(imgFile.files[0]); } else if(imgUrl.value.trim()){ imgSrc = imgUrl.value.trim(); const t=new Image(); t.onload = ()=> show('Loaded image URL. Press Start.'); t.onerror = ()=> show('Failed to load image URL.'); t.src = imgSrc; } else { alert('Choose a file or enter a URL.'); } attempt = 0; timeLeft = ATTEMPT_TIME; updateBadges(); hintBtn.disabled = true; retryBtn.disabled = true; startBtn.disabled = false; });
+
+  startBtn.addEventListener('click', startGame);
+  hintBtn.addEventListener('click', showHint);
+  retryBtn.addEventListener('click', retryAttempt);
+
+  // resize handling: rebuild pieces and re-place previously placed items
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ if(!imgSrc) return; const prevPlaced = {...placedMap}; if(attempt>0 && attempt <= MAX_ATTEMPTS){ buildBoardAndPieces(); for(const slotIdxStr in prevPlaced){ const slotIdx = parseInt(slotIdxStr,10); const prevPieceId = prevPlaced[slotIdx]; const svg = pieceElements[prevPieceId]; if(svg){ const slot = board.querySelector(`.slot[data-index='${slotIdx}']`); if(slot){ const left = parseFloat(slot.dataset.left), top = parseFloat(slot.dataset.top); svg.style.position='absolute'; svg.style.left = left + 'px'; svg.style.top = top + 'px'; svg.style.width = (getBoardGeometry().pieceW) + 'px'; svg.style.height = (getBoardGeometry().pieceH) + 'px'; board.appendChild(svg); placedMap[slotIdx] = prevPieceId; svg.setAttribute('draggable','false'); } } } } else { buildBoardAndPieces(); } },150); });
+
+  // init
+  applyVariant(variantSel.value); updateBadges(); hintBtn.disabled = true; retryBtn.disabled = true; show('Load an image and press Start.');
+
+})();
+</script>
+</body>
+</html>
